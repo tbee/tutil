@@ -2,6 +2,8 @@ package org.tbee.tutil;
 
 import java.time.Duration;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.DelayQueue;
 import java.util.concurrent.Delayed;
 import java.util.concurrent.TimeUnit;
@@ -65,7 +67,27 @@ public class RateLimiter {
         }
     }
 
-    private static class RateLimiterToken implements Delayed {
+    public List<RateLimiterToken> reduceTo(int size) {
+        List<RateLimiterToken> removed = new ArrayList<>();
+        while (delayQueue.size() > size) {
+            RateLimiterToken[] tokens = delayQueue.toArray(new RateLimiterToken[0]);
+            if (tokens.length > 1) {
+                RateLimiterToken token = tokens[tokens.length - 1];
+                LOG.log(DEBUG, "{0}: Reducing to {1}, currently at {2}, so removing token available at {3}", name, size, tokens.length, token.earliestReleaseTime);
+                if (delayQueue.remove(token)) {
+                    removed.add(token);
+                }
+            }
+        }
+        return removed;
+    }
+
+    public void add(List<RateLimiterToken> tokens) {
+        tokens.forEach(t -> delayQueue.add(t));
+        LOG.log(DEBUG, "{0}: Added {1} tokens, new size = {2}", name, tokens.size(), delayQueue.size());
+    }
+
+    public static class RateLimiterToken implements Delayed {
         private final LocalDateTime earliestReleaseTime;
 
         RateLimiterToken(LocalDateTime earliestReleaseTime) {
